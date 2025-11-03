@@ -4,9 +4,9 @@ from tkinter import filedialog, messagebox
 from tkinter import ttk
 
 ## models
-from alg.topsis import calculate_topsis_score
-from alg.rsm import compute_rsm_scores
-from alg.uta import compute_uta_results
+from src.alg.topsis import calculate_topsis_score
+from src.alg.rsm import compute_rsm_scores
+from src.alg.uta import compute_uta_results
 
 
 class DecisionAidApp(ctk.CTk):
