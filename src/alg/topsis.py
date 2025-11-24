@@ -112,7 +112,7 @@ def calculate_topsis_score(data, weights=None, norm='l2'):
         d_nadir = _distance(V[i], nadir_norm, p=metric)
         denom = d_star + d_nadir
         if denom == 0:
-            score = 1.0  # identyczne z ideal i nadir? rzadkie, przypisz maks
+            score = 1.0  # iw przypadku idealnego dopasowania, dajemy maksymalny wynik
         else:
             score = d_nadir / denom
         results.append( (i, float(score)) )
