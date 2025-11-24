@@ -1,3 +1,4 @@
+# gui.py
 import customtkinter as ctk
 import pandas as pd
 from tkinter import filedialog, messagebox
@@ -7,16 +8,16 @@ from tkinter import ttk
 from src.alg.topsis import calculate_topsis_score
 from src.alg.rsm import compute_rsm_scores
 from src.alg.uta import compute_uta_results
-
+from src.alg.spcs import compute_spcs_scores
 
 class DecisionAidApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Decision Aid Tool")
-        self.geometry("900x600")
+        self.geometry("1000x650")
 
         self.method_index = 0
-        self.data = None
+        self.df = None
 
         # --- Górny pasek kontrolny ---
         top_frame = ctk.CTkFrame(self)
@@ -27,7 +28,7 @@ class DecisionAidApp(ctk.CTk):
 
         self.method_var = ctk.StringVar(value="TOPSIS")
         self.method_menu = ctk.CTkOptionMenu(top_frame, variable=self.method_var,
-                                             values=["TOPSIS", "RSM", "UTA"])
+                                             values=["TOPSIS", "RSM", "SP-CS", "UTA"])
         self.method_menu.pack(side="left", padx=5)
 
         self.generate_btn = ctk.CTkButton(top_frame, text="Generate Ranking",
@@ -38,13 +39,19 @@ class DecisionAidApp(ctk.CTk):
         table_frame = ctk.CTkFrame(self)
         table_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # tabela z danymi wejściowymi
-        self.data_table = ttk.Treeview(table_frame, show="headings")
-        self.data_table.pack(side="left", fill="both", expand=True, padx=5)
+        # lewa: dane wejściowe (DataFrame)
+        left_frame = ctk.CTkFrame(table_frame)
+        left_frame.pack(side="left", fill="both", expand=True, padx=5)
+        ttk.Label(left_frame, text="Input data (rows = alternatives)").pack()
+        self.data_table = ttk.Treeview(left_frame, show="headings")
+        self.data_table.pack(fill="both", expand=True)
 
-        # tabela z wynikami
-        self.result_table = ttk.Treeview(table_frame, show="headings")
-        self.result_table.pack(side="left", fill="both", expand=True, padx=5)
+        # prawa: wyniki
+        right_frame = ctk.CTkFrame(table_frame)
+        right_frame.pack(side="left", fill="both", expand=True, padx=5)
+        ttk.Label(right_frame, text="Ranking results").pack()
+        self.result_table = ttk.Treeview(right_frame, show="headings")
+        self.result_table.pack(fill="both", expand=True)
 
         # stylowanie
         style = ttk.Style()
@@ -59,7 +66,7 @@ class DecisionAidApp(ctk.CTk):
 
         try:
             df = pd.read_csv(file_path, index_col=0)
-            self.data = df.values.tolist()
+            self.df = df.copy()
             self.populate_table(self.data_table, df)
             self.generate_btn.configure(state="normal")
             messagebox.showinfo("Success", "Data loaded successfully!")
@@ -67,42 +74,41 @@ class DecisionAidApp(ctk.CTk):
             messagebox.showerror("Error", str(e))
 
     def populate_table(self, table, dataframe):
-        # wyczyść starą zawartość
-        for col in table.get_children():
-            table.delete(col)
+        # wyczyść starą zawartość (itemy), a nie kolumny
+        for it in table.get_children():
+            table.delete(it)
 
         # ustaw nagłówki
         table["columns"] = list(dataframe.columns)
         for col in dataframe.columns:
-            table.heading(col, text=col)
-            table.column(col, width=120)
+            table.heading(col, text=str(col))
+            table.column(col, width=120, anchor="center")
 
         # wstaw dane
-        for _, row in dataframe.iterrows():
-            table.insert("", "end", values=list(row))
+        for idx, row in dataframe.iterrows():
+            vals = [row[c] for c in dataframe.columns]
+            table.insert("", "end", values=vals)
 
     def generate_ranking(self):
-        if self.data is None:
+        if self.df is None:
             messagebox.showwarning("Warning", "Load data first!")
             return
 
         method = self.method_var.get()
-        match method:
-            case "TOPSIS":
-                result = calculate_topsis_score(self.data)
-            case "RSM":
-                result = compute_rsm_scores(self.data)
-            case "UTA":
-                result = compute_uta_results(self.data)
-            case _:
-                result = []
+        data_values = self.df.values.tolist()
+        if method == "TOPSIS":
+            result = calculate_topsis_score(data_values)
+        elif method == "RSM":
+            result = compute_rsm_scores(data_values)
+        elif method == "SP-CS":
+            result = compute_spcs_scores(data_values)
+        elif method == "UTA":
+            result = compute_uta_results(data_values)
+        else:
+            result = []
 
-        df_result = pd.DataFrame(result, columns=["Point", "Score"])
+        # prepare DataFrame for results
+        df_result = pd.DataFrame(result, columns=["PointIndex", "Score"])
+        # sort by index for nicer view
+        df_result = df_result.sort_values(by="PointIndex").reset_index(drop=True)
         self.populate_table(self.result_table, df_result)
-
-
-if __name__ == "__main__":
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
-    app = DecisionAidApp()
-    app.mainloop()
