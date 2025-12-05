@@ -2,6 +2,10 @@ import customtkinter as ctk
 import pandas as pd
 from tkinter import filedialog, messagebox
 from tkinter import ttk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import Axes3D
+
 
 ## models
 from src.alg.topsis import calculate_topsis_score
@@ -37,6 +41,12 @@ class DecisionAidApp(ctk.CTk):
             state="disabled", command=self.generate_ranking
         )
         self.generate_btn.pack(side="left", padx=5)
+        
+        self.plot_btn = ctk.CTkButton(
+            top, text="Show 3D Plot",
+            state="disabled", command=self.show_3d_plot
+        )
+        self.plot_btn.pack(side="left", padx=5)
 
         # ---- SORTING SWITCH ----
         ctk.CTkLabel(top, text="Sort by:").pack(side="left", padx=10)
@@ -146,6 +156,10 @@ class DecisionAidApp(ctk.CTk):
 
         df_result = pd.DataFrame(result, columns=["PointIndex", "Score"])
 
+        param_cols = self.df.columns
+        for i, col in enumerate(param_cols):
+            df_result[col] = self.df.iloc[df_result["PointIndex"].values][col].values
+
         # ===== SORT BASED ON GUI SELECTION =====
         sort_mode = self.sort_var.get()
 
@@ -157,3 +171,55 @@ class DecisionAidApp(ctk.CTk):
         df_result = df_result.reset_index(drop=True)
 
         self.populate_table(self.result_table, df_result)
+        self.plot_btn.configure(state="normal")
+
+    def show_3d_plot(self):
+        if self.df is None:
+            messagebox.showwarning("Warning", "Load data first!")
+            return
+
+        if len(self.df.columns) < 3:
+            messagebox.showwarning("Warning", "Dataset must contain at least 3 columns for 3D plot.")
+            return
+
+        x = self.df.iloc[:, 0].astype(float).values
+        y = self.df.iloc[:, 1].astype(float).values
+        z = self.df.iloc[:, 2].astype(float).values
+
+        score_values = None
+        try:
+            rows = self.result_table.get_children()
+            if rows:
+                score_values = []
+                for item in rows:
+                    row = self.result_table.item(item)["values"]
+                    score_values.append(float(row[1]))  # KONWERSJA do float
+        except Exception as e:
+            print("Error reading scores:", e)
+            score_values = None
+
+
+        plot_window = ctk.CTkToplevel(self)
+        plot_window.title("3D Plot")
+        plot_window.geometry("800x600")
+
+        fig = Figure(figsize=(7, 6), dpi=100)
+        ax = fig.add_subplot(111, projection='3d')
+
+        if score_values is not None and len(score_values) == len(x):
+            sc = ax.scatter(x, y, z, c=score_values, cmap="viridis", s=60)
+            fig.colorbar(sc, ax=ax, shrink=0.6)
+        else:
+
+            sc = ax.scatter(x, y, z, s=60)
+
+        ax.set_xlabel(self.df.columns[0])
+        ax.set_ylabel(self.df.columns[1])
+        ax.set_zlabel(self.df.columns[2])
+
+        ax.set_title("3D Scatter Plot of Points")
+
+        canvas = FigureCanvasTkAgg(fig, master=plot_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+

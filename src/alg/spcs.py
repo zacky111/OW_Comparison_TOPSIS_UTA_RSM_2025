@@ -1,12 +1,3 @@
-# src/alg/spcs.py
-"""
-Prosty wariant SP-CS (safety principle + compromise selection)
-- budujemy łamaną szkieletową jako linię łączącą centroid najlepszych i najgorszych klas
-  (można potem rozszerzyć o wszystkie pary z sąsiednich klas)
-- parametryzacja t: 0 (początek) -> 1 (koniec)
-- metryka rzutów: używamy projekcji w sensie zwykłego rzutu (następnie odległość L_inf)
-- score = t + distance(F(u), gamma) (odległość znormalizowana), a następnie skalujemy, by większy == lepszy
-"""
 import numpy as np
 from src.alg.topsis import _pareto_front, _normalize, _distance
 
@@ -16,7 +7,6 @@ def compute_spcs_scores(data, weights=None, norm='linf'):
     if weights is None:
         weights = np.ones(n, dtype=float)
 
-    # stworzyć warstwy Pareto
     remaining = A.copy()
     idx_map = np.arange(m)
     layers = []
@@ -32,14 +22,12 @@ def compute_spcs_scores(data, weights=None, norm='linf'):
         idx_map = idx_map[mask]
 
     if len(layers) < 2:
-        # fallback: użyj min/max globalnych
         a = np.min(A, axis=0)
         b = np.max(A, axis=0)
     else:
         a = np.mean(A[layers[0], :], axis=0)     # aspiracje (najlepsze)
         b = np.mean(A[layers[-1], :], axis=0)    # status-quo (najgorsze)
 
-    # znormalizuj wszystkie wektory tą samą procedurą
     V = _normalize(A, norm=norm, weights=weights)
     an = _normalize(a.reshape((1,-1)), norm=norm, weights=weights).reshape(-1)
     bn = _normalize(b.reshape((1,-1)), norm=norm, weights=weights).reshape(-1)
@@ -65,10 +53,10 @@ def compute_spcs_scores(data, weights=None, norm='linf'):
         dist = _distance(x, proj, p=metric)
         ts.append(t)
         distances.append(dist)
-        scores_raw.append(t + dist)  # założenie: mniejsza suma = bliżej aspiracji i linii
-    # Mamy raw = t + dist (mniejsze lepsze) -> zamienimy na score większe lepsze
+        scores_raw.append(t + dist)
+
     raw = np.array(scores_raw, dtype=float)
-    # inwersja: nscore = 1 - (raw - min)/(max-min)
+    
     minr, maxr = raw.min(), raw.max()
     if maxr - minr == 0:
         nscore = np.ones_like(raw) * 0.5
